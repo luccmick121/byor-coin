@@ -41,21 +41,53 @@ const TOKEN = {
 };
 const st = (m, err=false) => { const el=document.getElementById('st'); el.textContent=m; el.className=err?'err':''; };
 
+/* ── Caça a MetaMask entre TODOS os providers injetados ──────────────
+   Problema: outras extensões (TronLink, Trust, etc.) tomam window.ethereum
+   e NÃO suportam wallet_watchAsset. Soluções empilhadas:
+   1. window.ethereum é MetaMask? usa direto
+   2. array legacy ethereum.providers → acha a que tem isMetaMask
+   3. EIP-6963 (padrão multi-wallet): pede que todos se anunciem e pega a MetaMask
+──────────────────────────────────────────────────────────────────────── */
+function acharMetaMask() {
+  if (window.ethereum && window.ethereum.isMetaMask && window.ethereum.request) {
+    return Promise.resolve(window.ethereum);
+  }
+  if (window.ethereum && Array.isArray(window.ethereum.providers)) {
+    const mm = window.ethereum.providers.find(p => p.isMetaMask);
+    if (mm) return Promise.resolve(mm);
+  }
+  return new Promise((resolve) => {
+    const achados = [];
+    window.addEventListener('eip6963:announceProvider', (ev) => {
+      if (ev.detail && ev.detail.provider) achados.push(ev.detail);
+    });
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+    setTimeout(() => {
+      const alvo = achados.find(a => /metamask/i.test(a.info?.name || '')) || achados[0];
+      resolve(alvo ? alvo.provider : null);
+    }, 400);
+  });
+}
+
 document.getElementById('btn').addEventListener('click', async () => {
-  if (!window.ethereum) {
-    st('Abra este link dentro do navegador da sua carteira (MetaMask → navegador → cole o link)', true);
+  const mm = await acharMetaMask();
+  if (!mm) {
+    st('Nenhuma MetaMask encontrada neste navegador. Instale/desbloqueie a extensão e recarregue a página.', true);
     return;
   }
   try {
-    const ok = await ethereum.request({ method:'wallet_watchAsset', params: TOKEN });
+    const ok = await mm.request({ method: 'wallet_watchAsset', params: TOKEN });
     st(ok ? '✓ USDT adicionado com a logo' : 'Recusado pelo usuário', !ok);
-  } catch(e) {
-    st('Erro: ' + (e.message||e), true);
-    if (String(e.message||e).match(/chain|network/i)) {
-      try { await ethereum.request({ method:'wallet_switchEthereumChain', params:[{chainId:'0x1'}]}); } catch(_){}
+  } catch (e) {
+    st('Erro: ' + (e.message || e), true);
+    if (String(e.message || e).match(/chain|network/i)) {
+      try { await mm.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] }); } catch (_) {}
     }
   }
 });
+
+// registra o listener 6963 já no load (carteiras anunciam cedo)
+window.addEventListener('eip6963:announceProvider', () => {}, { once: true });
 </script>
 </body>
 </html>
