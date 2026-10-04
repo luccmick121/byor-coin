@@ -63,16 +63,19 @@ function acharMetaMask() {
     });
     window.dispatchEvent(new Event('eip6963:requestProvider'));
     setTimeout(() => {
-      const alvo = achados.find(a => /metamask/i.test(a.info?.name || '')) || achados[0];
+      // SÓ MetaMask de verdade (isMetaMask) — sem fallback pra TronLink/outras
+      const alvo = achados.find(a => a.provider?.isMetaMask === true) || achados.find(a => /metamask/i.test(a.info?.name || ''));
+      window.__carteirasVistas = achados.map(a => a.info?.name || '?');
       resolve(alvo ? alvo.provider : null);
-    }, 400);
+    }, 1200);
   });
 }
 
 document.getElementById('btn').addEventListener('click', async () => {
   const mm = await acharMetaMask();
-  if (!mm) {
-    st('Nenhuma MetaMask encontrada neste navegador. Instale/desbloqueie a extensão e recarregue a página.', true);
+  if (!mm || mm.isMetaMask !== true) {
+    const vistas = (window.__carteirasVistas || []).join(', ') || 'nenhuma';
+    st('MetaMask não encontrada neste navegador/perfil. Carteiras vistas: ' + vistas + ' — troque para o perfil do Chrome onde a raposa está instalada e desbloqueada.', true);
     return;
   }
   try {
