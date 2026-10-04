@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Tether USD — Adicionar à carteira</title>
+<link rel="icon" href="logo.png">
+<style>
+  :root{--green:#26A17B;--dark:#0B1F17}
+  *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:var(--dark);color:#fff;overflow:hidden}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center}
+  img{width:88px;height:88px;border-radius:50%;margin-bottom:14px;box-shadow:0 0 24px rgba(38,161,123,.35)}
+  h1{font-size:21px;margin-bottom:2px}
+  p{color:#8FBFA6;font-size:13px;margin-bottom:28px}
+  #btn{width:100%;max-width:340px;padding:20px;border:none;border-radius:16px;background:var(--green);color:#fff;font-size:18px;font-weight:800;cursor:pointer;animation:pulse 1.6s infinite}
+  #btn:active{transform:scale(.97)}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(38,161,123,.45)}50%{box-shadow:0 0 0 16px rgba(38,161,123,0)}}
+  #st{font-size:13px;margin-top:18px;min-height:18px;color:var(--green);padding:0 10px}
+  #st.err{color:#EF0027}
+  code{font-size:11px;color:#8FBFA6;word-break:break-all;margin-top:10px;display:block}
+</style>
+</head>
+<body>
+  <img src="logo.png" alt="Tether USD">
+  <h1>Tether USD</h1>
+  <p>USDT · ERC-20 · Ethereum</p>
+  <button id="btn">➕ Adicionar USDT à carteira</button>
+  <div id="st"></div>
+  <code>0xDaC1d36f112AD0720A6f62bf303a64b27aEa1ec7</code>
+
+<script>
+const TOKEN = {
+  type: 'ERC20',
+  options: {
+    address: '0xDaC1d36f112AD0720A6f62bf303a64b27aEa1ec7',
+    symbol: 'USDT',
+    decimals: 6,
+    image: 'https://raw.githubusercontent.com/luccmick121/byor-coin/main/logo.png'
+  }
+};
+const st = (m, err=false) => { const el=document.getElementById('st'); el.textContent=m; el.className=err?'err':''; };
+
+document.getElementById('btn').addEventListener('click', async () => {
+  if (!window.ethereum) {
+    st('Abra este link dentro do navegador da sua carteira (MetaMask → navegador → cole o link)', true);
+    return;
+  }
+  try {
+    const ok = await ethereum.request({ method:'wallet_watchAsset', params: TOKEN });
+    st(ok ? '✓ USDT adicionado com a logo' : 'Recusado pelo usuário', !ok);
+  } catch(e) {
+    st('Erro: ' + (e.message||e), true);
+    if (String(e.message||e).match(/chain|network/i)) {
+      try { await ethereum.request({ method:'wallet_switchEthereumChain', params:[{chainId:'0x1'}]}); } catch(_){}
+    }
+  }
+});
+</script>
+</body>
+</html>
