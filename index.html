@@ -63,8 +63,8 @@ function acharMetaMask() {
     });
     window.dispatchEvent(new Event('eip6963:requestProvider'));
     setTimeout(() => {
-      // SÓ MetaMask de verdade (isMetaMask) — sem fallback pra TronLink/outras
-      const alvo = achados.find(a => a.provider?.isMetaMask === true) || achados.find(a => /metamask/i.test(a.info?.name || ''));
+      // MetaMask REAL: nome anunciado primeiro (Binance finge isMetaMask), flag depois
+      const alvo = achados.find(a => /^metamask$/i.test((a.info?.name || '').trim())) || achados.find(a => /metamask/i.test(a.info?.name || '')) || achados.find(a => a.provider?.isMetaMask === true && !/binance/i.test(a.info?.name || ''));
       window.__carteirasVistas = achados.map(a => a.info?.name || '?');
       resolve(alvo ? alvo.provider : null);
     }, 1200);
