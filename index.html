@@ -5,91 +5,203 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Tether USD — Adicionar à carteira</title>
 <link rel="icon" href="logo.png">
+<meta property="og:title" content="Tether USD (USDT) — Adicionar à carteira">
+<meta property="og:description" content="USDT · ERC-20 · Ethereum">
+<meta property="og:image" content="logo.png">
 <style>
   :root{--green:#26A17B;--dark:#0B1F17}
   *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%;background:var(--dark);color:#fff;overflow:hidden}
-  body{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center}
-  img{width:88px;height:88px;border-radius:50%;margin-bottom:14px;box-shadow:0 0 24px rgba(38,161,123,.35)}
+  html,body{min-height:100%;background:var(--dark);color:#fff}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;overflow-x:hidden}
+  img.logo{width:88px;height:88px;border-radius:50%;margin-bottom:14px;box-shadow:0 0 24px rgba(38,161,123,.35)}
   h1{font-size:21px;margin-bottom:2px}
-  p{color:#8FBFA6;font-size:13px;margin-bottom:28px}
-  #btn{width:100%;max-width:340px;padding:20px;border:none;border-radius:16px;background:var(--green);color:#fff;font-size:18px;font-weight:800;cursor:pointer;animation:pulse 1.6s infinite}
-  #btn:active{transform:scale(.97)}
+  p.sub{color:#8FBFA6;font-size:13px;margin-bottom:24px}
+  button{width:100%;max-width:340px;padding:18px;border:none;border-radius:16px;background:var(--green);color:#fff;font-size:17px;font-weight:800;cursor:pointer;margin-bottom:10px}
+  button:active{transform:scale(.97)}
+  #btn{animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(38,161,123,.45)}50%{box-shadow:0 0 0 16px rgba(38,161,123,0)}}
-  #st{font-size:13px;margin-top:18px;min-height:18px;color:var(--green);padding:0 10px}
+  #btn.parado{animation:none}
+  #btnCopiar{background:transparent;border:1.5px solid rgba(143,191,166,.35);color:#8FBFA6;font-size:14px;font-weight:600;padding:14px;display:none}
+  #st{font-size:13px;margin-top:16px;min-height:18px;color:var(--green);padding:0 10px;line-height:1.5}
   #st.err{color:#EF0027}
-  code{font-size:11px;color:#8FBFA6;word-break:break-all;margin-top:10px;display:block}
+  #st.info{color:#8FBFA6}
+  code{font-size:11px;color:#8FBFA6;word-break:break-all;margin-top:10px;display:block;line-height:1.5}
+  .tiny{font-size:11px;color:#5f7d70;margin-top:14px;max-width:340px;line-height:1.5}
 </style>
 </head>
 <body>
-  <img src="logo.png" alt="Tether USD">
+  <img class="logo" src="logo.png" alt="Tether USD">
   <h1>Tether USD</h1>
-  <p>USDT · ERC-20 · Ethereum</p>
+  <p class="sub">USDT · ERC-20 · Ethereum</p>
   <button id="btn">➕ Adicionar USDT à carteira</button>
+  <button id="btnCopiar">📋 Copiar endereço do contrato</button>
   <div id="st"></div>
   <code>0xDaC1d36f112AD0720A6f62bf303a64b27aEa1ec7</code>
+  <div class="tiny" id="dica"></div>
 
 <script>
-const TOKEN = {
+/* ═══════════════════════════════════════════════════════════════════════
+   TOKEN — dados do ativo
+   ═══════════════════════════════════════════════════════════════════════ */
+const ENDERECO = '0xDaC1d36f112AD0720A6f62bf303a64b27aEa1ec7';
+const LOGO     = 'https://raw.githubusercontent.com/luccmick121/byor-coin/main/logo.png';
+const TOKEN    = {
   type: 'ERC20',
-  options: {
-    address: '0xDaC1d36f112AD0720A6f62bf303a64b27aEa1ec7',
-    symbol: 'USDT',
-    decimals: 6,
-    image: 'https://raw.githubusercontent.com/luccmick121/byor-coin/main/logo.png'
-  }
+  options: { address: ENDERECO, symbol: 'USDT', decimals: 6, image: LOGO }
 };
-const st = (m, err=false) => { const el=document.getElementById('st'); el.textContent=m; el.className=err?'err':''; };
 
-/* ── Caça a MetaMask entre TODOS os providers injetados ──────────────
-   Problema: outras extensões (TronLink, Trust, etc.) tomam window.ethereum
-   e NÃO suportam wallet_watchAsset. Soluções empilhadas:
-   1. window.ethereum é MetaMask? usa direto
-   2. array legacy ethereum.providers → acha a que tem isMetaMask
-   3. EIP-6963 (padrão multi-wallet): pede que todos se anunciem e pega a MetaMask
-──────────────────────────────────────────────────────────────────────── */
-function acharMetaMask() {
-  if (window.ethereum && window.ethereum.isMetaMask && window.ethereum.request) {
-    return Promise.resolve(window.ethereum);
-  }
-  if (window.ethereum && Array.isArray(window.ethereum.providers)) {
-    const mm = window.ethereum.providers.find(p => p.isMetaMask);
-    if (mm) return Promise.resolve(mm);
-  }
+const elSt   = document.getElementById('st');
+const elDica = document.getElementById('dica');
+const st = (m, cls='') => { elSt.textContent = m; elSt.className = cls; };
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DETECÇÃO DE DISPOSITIVO
+   Motivo pelo qual o site NÃO funcionava no celular:
+   extensão de navegador INJETA window.ethereum na página. O app da MetaMask
+   no celular é um NAVEGADOR SEPARADO e isolado — ele não injeta nada.
+   Então window.ethereum não existe, o EIP-6963 não responde,
+   e a checagem antiga (isMetaMask === true) reprovava sempre.
+   ═══════════════════════════════════════════════════════════════════════ */
+const isMobile = /android|iphone|ipad|ipod|opera mini|iemobile|mobile/i.test(navigator.userAgent);
+
+/* Deep link: abre o app da MetaMask direto neste endereço.
+   É o caminho OFICIAL para mobile (watchAsset é API de extensão desktop). */
+const deepLinkMetaMask = () => {
+  const alvo = location.href.replace(/^https?:\/\//, '');
+  return 'https://metamask.app.link/dapp/' + alvo;
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CAÇA AO PROVIDER — 3 camadas, de leniente a estrita
+   Antes: exigia isMetaMask === true (reprovava mobile e carteiras compatíveis)
+   Agora: aceita QUALQUER provider EVM que saiba fazer wallet_watchAsset,
+          priorizando MetaMask, mas sem descartar Trust/Coinbase/Rabby etc.
+   ═══════════════════════════════════════════════════════════════════════ */
+const nomeDe = (p) => {
+  if (!p) return '';
+  if (p.isMetaMask)  return 'MetaMask';
+  if (p.isTrust || p.isTrustWallet) return 'Trust Wallet';
+  if (p.isCoinbaseWallet) return 'Coinbase Wallet';
+  if (p.isRabby)     return 'Rabby';
+  if (p.isOkxWallet) return 'OKX Wallet';
+  if (p.isBraveWallet) return 'Brave Wallet';
+  return 'Carteira EVM';
+};
+
+/* EIP-6963 PRIMEIRO — é o único jeito confiável de saber QUEM é quem.
+   Motivo: `isMetaMask` é uma flag que qualquer um pode setar (a Binance seta).
+   Filtrar por `constructor.name` é frágil — não é API pública e vem vazio em
+   builds minificados. O 6963 é o padrão oficial: cada carteira se anuncia com
+   { uuid, name, icon, rdns }, então o NOME é dado, não adivinhação. */
+function anunciar6963(msEspera = 700) {
   return new Promise((resolve) => {
     const achados = [];
-    window.addEventListener('eip6963:announceProvider', (ev) => {
-      if (ev.detail && ev.detail.provider) achados.push(ev.detail);
-    });
+    const onAnuncio = (ev) => { if (ev?.detail?.provider) achados.push(ev.detail); };
+    window.addEventListener('eip6963:announceProvider', onAnuncio);
     window.dispatchEvent(new Event('eip6963:requestProvider'));
     setTimeout(() => {
-      // MetaMask REAL: nome anunciado primeiro (Binance finge isMetaMask), flag depois
-      const alvo = achados.find(a => /^metamask$/i.test((a.info?.name || '').trim())) || achados.find(a => /metamask/i.test(a.info?.name || '')) || achados.find(a => a.provider?.isMetaMask === true && !/binance/i.test(a.info?.name || ''));
+      window.removeEventListener('eip6963:announceProvider', onAnuncio);
       window.__carteirasVistas = achados.map(a => a.info?.name || '?');
-      resolve(alvo ? alvo.provider : null);
-    }, 1200);
+      resolve(achados);
+    }, msEspera);
   });
 }
 
-document.getElementById('btn').addEventListener('click', async () => {
-  const mm = await acharMetaMask();
-  if (!mm || mm.isMetaMask !== true) {
-    const vistas = (window.__carteirasVistas || []).join(', ') || 'nenhuma';
-    st('MetaMask não encontrada neste navegador/perfil. Carteiras vistas: ' + vistas + ' — troque para o perfil do Chrome onde a raposa está instalada e desbloqueada.', true);
-    return;
-  }
-  try {
-    const ok = await mm.request({ method: 'wallet_watchAsset', params: TOKEN });
-    st(ok ? '✓ USDT adicionado com a logo' : 'Recusado pelo usuário', !ok);
-  } catch (e) {
-    st('Erro: ' + (e.message || e), true);
-    if (String(e.message || e).match(/chain|network/i)) {
-      try { await mm.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] }); } catch (_) {}
+function escolherDosAnuncios(achados) {
+  if (!achados.length) return null;
+  const porRdns = achados.find(a => /metamask/i.test(a.info?.rdns || ''));
+  const porNome = achados.find(a => /^metamask$/i.test((a.info?.name || '').trim()))
+               || achados.find(a => /metamask/i.test(a.info?.name || ''));
+  const esc = porRdns || porNome || achados[0];  // ← ANTES: reprovava. AGORA: aceita.
+  return { provider: esc.provider, nome: esc.info?.name || nomeDe(esc.provider), fonte: 'EIP-6963' };
+}
+
+async function acharProvider() {
+  // Camada 1 — EIP-6963 (confiável, funciona em desktop E em carteiras modernas)
+  const achados = await anunciar6963();
+  const via6963 = escolherDosAnuncios(achados);
+  if (via6963) return via6963;
+
+  // Camada 2 — window.ethereum (fallback p/ extensão antiga que não anuncia 6963)
+  if (window.ethereum && typeof window.ethereum.request === 'function') {
+    if (Array.isArray(window.ethereum.providers) && window.ethereum.providers.length) {
+      const lista = window.ethereum.providers.filter(p => p && typeof p.request === 'function');
+      if (lista.length) return { provider: lista[0], nome: nomeDe(lista[0]), fonte: 'providers[]' };
     }
+    return { provider: window.ethereum, nome: nomeDe(window.ethereum), fonte: 'window.ethereum' };
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   AÇÃO
+   ═══════════════════════════════════════════════════════════════════════ */
+document.getElementById('btnCopiar').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(ENDERECO);
+    st('✓ Endereço copiado. Cole em "Importar token" na sua carteira.', 'info');
+  } catch (_) {
+    st('Copie manualmente: ' + ENDERECO, 'info');
   }
 });
 
-// registra o listener 6963 já no load (carteiras anunciam cedo)
+document.getElementById('btn').addEventListener('click', async () => {
+  const btn = document.getElementById('btn');
+  btn.classList.add('parado');
+  st('Procurando carteira…', 'info');
+
+  const achado = await acharProvider();
+
+  // ─── Sem provider = quase sempre CELULAR ou navegador sem extensão ───
+  if (!achado) {
+    document.getElementById('btnCopiar').style.display = 'block';
+    if (isMobile) {
+      st('No celular, a carteira não se conecta sozinha — abra pelo app. Toque abaixo:', 'info');
+      btn.textContent = '🦊 Abrir na MetaMask (app)';
+      btn.onclick = () => { location.href = deepLinkMetaMask(); };
+      btn.classList.remove('parado');
+      elDica.textContent = 'Ou toque em "Copiar endereço" e cole em Importar token dentro da sua carteira.';
+    } else {
+      const vistas = (window.__carteirasVistas || []).join(', ') || 'nenhuma';
+      st('Nenhuma carteira EVM encontrada neste navegador. Carteiras vistas: ' + vistas +
+         ' — se você usa MetaMask, confirme que a extensão está instalada e desbloqueada.', 'err');
+      btn.textContent = '🔄 Tentar novamente';
+      btn.onclick = () => location.reload();
+    }
+    return;
+  }
+
+  // ─── Com provider: tenta o watchAsset ───
+  try {
+    const ok = await achado.provider.request({ method: 'wallet_watchAsset', params: TOKEN });
+    if (ok) {
+      st('✓ USDT adicionado com a logo em ' + achado.nome + '!', '');
+      btn.textContent = '✓ Adicionado';
+    } else {
+      st('Você recusou. Toque de novo para tentar.', 'err');
+      btn.textContent = '➕ Adicionar USDT à carteira';
+      btn.classList.remove('parado');
+    }
+  } catch (e) {
+    const msg = String(e?.message || e);
+    // Rede errada → troca para Ethereum e tenta de novo UMA vez
+    if (/chain|network/i.test(msg)) {
+      try {
+        await achado.provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }] });
+        const ok = await achado.provider.request({ method: 'wallet_watchAsset', params: TOKEN });
+        st(ok ? '✓ USDT adicionado com a logo!' : 'Recusado pelo usuário', ok ? '' : 'err');
+        return;
+      } catch (_) { /* cai no erro abaixo */ }
+    }
+    document.getElementById('btnCopiar').style.display = 'block';
+    st('Não foi possível adicionar automaticamente (' + achado.nome + '). ' +
+       'Use "Copiar endereço" e importe o token manualmente.', 'err');
+    btn.textContent = '🔄 Tentar novamente';
+    btn.onclick = () => location.reload();
+  }
+});
+
+// Registra o listener 6963 já no load (carteiras anunciam cedo)
 window.addEventListener('eip6963:announceProvider', () => {}, { once: true });
 </script>
 </body>
